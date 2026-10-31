@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Expense Ledger</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif&display=swap">
+<style>
+html{color-scheme:light}[hidden]{display:none!important}body{margin:0}
+/* Layout: a ledger book. Masthead with the month total, two tabs (Expenses, Subledger), one working column that widens to a two-up grid on desktop. */
+:root {
+  --paper: #f1f4f2;
+  --sheet: #fbfcfb;
+  --ink: #15211d;
+  --muted: #5d6c66;
+  --rule: #d5ddd9;
+  --accent: #0e6b5b;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcece8;
+  --open: #a35d00;
+  --open-soft: #f6e8d0;
+  --bad: #a8321f;
+  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #101916; --sheet: #17221e; --ink: #e6efeb; --muted: #94a69f; --rule: #2a3a34;
+    --accent: #4fc3ab; --accent-ink: #08201a; --accent-soft: #1d3a33;
+    --open: #e5a24a; --open-soft: #3a2d17; --bad: #ef8c7a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #101916; --sheet: #17221e; --ink: #e6efeb; --muted: #94a69f; --rule: #2a3a34;
+  --accent: #4fc3ab; --accent-ink: #08201a; --accent-soft: #1d3a33;
+  --open: #e5a24a; --open-soft: #3a2d17; --bad: #ef8c7a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+button, input, select { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+/* Masthead */
+.mast { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; padding-bottom: 14px; border-bottom: 2px solid var(--ink); }
+.mast h1 { font-family: var(--font-display); font-weight: 400; font-size: 2.1rem; line-height: 1; margin: 0; letter-spacing: 0.005em; }
+.mast .sub { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
+.month-pick { display: flex; align-items: center; gap: 8px; }
+.month-pick select { background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 10px; min-height: 36px; }
+.figures { display: flex; flex-wrap: wrap; gap: 8px 36px; }
+.fig { min-width: 0; }
+.fig .lab { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.fig .val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 1.55rem; font-weight: 500; }
+.fig .val small { font-size: 0.8rem; color: var(--muted); margin-right: 4px; font-weight: 400; }
+.fig.open .val { color: var(--open); }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); }
+.tab { background: none; border: 0; padding: 10px 16px; min-height: 44px; cursor: pointer; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -1px; font-weight: 500; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+
+.status { font-size: 0.85rem; color: var(--muted); min-height: 1.2em; }
+.status.warn { color: var(--open); }
+
+/* Entry form */
+.panel { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; }
+.panel h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 0.78rem; color: var(--muted); }
+.field input, .field select { background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px; min-height: 40px; width: 100%; min-width: 0; }
+.field input.amt { text-align: right; font-family: var(--font-mono); }
+.check { flex-direction: row; align-items: center; gap: 8px; min-height: 40px; }
+.check input { width: 18px; height: 18px; min-height: 0; accent-color: var(--accent); }
+.check label { color: var(--ink); font-size: 0.9rem; }
+.btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 4px; padding: 0 18px; min-height: 40px; font-weight: 600; cursor: pointer; }
+.btn.ghost { background: none; color: var(--ink); border: 1px solid var(--rule); font-weight: 500; }
+.btn.small { min-height: 32px; padding: 0 12px; font-size: 0.85rem; }
+.err { color: var(--bad); font-size: 0.85rem; grid-column: 1 / -1; min-height: 1em; }
+
+/* Overview grid */
+.grid2 { display: grid; grid-template-columns: 1fr; gap: 20px; }
+@media (min-width: 820px) { .grid2 { grid-template-columns: 1.1fr 1fr; } }
+.cat { display: grid; grid-template-columns: minmax(0, 9.5rem) 1fr auto; gap: 10px; align-items: center; padding: 6px 0; }
+.cat .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat .bar { height: 10px; background: var(--accent-soft); border-radius: 2px; overflow: hidden; }
+.cat .bar i { display: block; height: 100%; background: var(--accent); }
+.cat .amt { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.88rem; }
+.trend text { fill: var(--muted); font-family: var(--font-mono); font-size: 9px; }
+.trend text.now { fill: var(--ink); font-weight: 500; }
+.trend rect.b { fill: var(--accent-soft); }
+.trend rect.b.now { fill: var(--accent); }
+.trend line { stroke: var(--rule); stroke-width: 1; }
+
+/* Entry list */
+.rows { display: flex; flex-direction: column; }
+.row { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 0; border-top: 1px solid var(--rule); align-items: center; }
+.row:first-child { border-top: 0; }
+.row .d { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); }
+.row .who { min-width: 0; }
+.row .who b { font-weight: 500; overflow-wrap: anywhere; }
+.row .who span { display: block; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
+.row .right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.row .right .a { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 500; }
+.acts { display: flex; gap: 6px; align-items: center; }
+.pill { border: 1px solid transparent; border-radius: 99px; font-size: 0.72rem; padding: 2px 10px; min-height: 26px; cursor: pointer; font-weight: 500; }
+.pill.paid { background: var(--accent-soft); color: var(--accent); }
+.pill.open { background: var(--open-soft); color: var(--open); }
+.del { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 0.78rem; min-height: 26px; padding: 0 4px; text-decoration: underline; }
+.del.sure { color: var(--bad); }
+.tag-ex { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border: 1px solid var(--rule); border-radius: 3px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
+
+.empty { padding: 28px 8px; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.empty b { color: var(--ink); font-family: var(--font-display); font-weight: 400; font-size: 1.4rem; }
+
+/* Subledger */
+.tools { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.tools select { background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 10px; min-height: 36px; }
+.recon { font-size: 0.85rem; color: var(--muted); }
+.recon .ok { color: var(--accent); font-weight: 600; }
+.recon .no { color: var(--bad); font-weight: 600; }
+.ctl { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.ctl + .ctl { margin-top: 14px; }
+.ctl-head { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(5.2rem, auto)); gap: 4px 14px; padding: 12px 14px; background: var(--accent-soft); align-items: baseline; }
+.ctl-head .t { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.ctl-head .t .code { font-family: var(--font-mono); font-weight: 400; color: var(--muted); margin-right: 8px; font-size: 0.85rem; }
+.colh { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); text-align: right; }
+.ctl-head .n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+.ctl-head .n.o { color: var(--open); }
+.scroll { overflow-x: auto; }
+.party-line { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(5.2rem, auto)); gap: 4px 14px; padding: 9px 14px; cursor: pointer; align-items: baseline; min-width: 480px; }
+.party-line .n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.88rem; }
+.party-line .n.o { color: var(--open); }
+.party-line .n.z { color: var(--muted); }
+details.party { border-top: 1px solid var(--rule); }
+details.party > summary { list-style: none; }
+details.party > summary::-webkit-details-marker { display: none; }
+details.party > summary .nm::before { content: "▸"; display: inline-block; width: 1.1em; color: var(--muted); transition: transform .12s; }
+details.party[open] > summary .nm::before { transform: rotate(90deg); }
+.entries { padding: 4px 14px 12px 34px; min-width: 480px; }
+.er { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) 6rem 6rem; gap: 10px; padding: 5px 0; font-size: 0.85rem; align-items: baseline; border-top: 1px dashed var(--rule); }
+.er:first-child { border-top: 0; }
+.er .d { font-family: var(--font-mono); color: var(--muted); font-size: 0.78rem; }
+.er .a, .er .rb { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.er .rb { color: var(--open); }
+.er .rb.z { color: var(--muted); }
+.er .st { color: var(--muted); }
+.ctl-foot { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(5.2rem, auto)); gap: 4px 14px; padding: 10px 14px; border-top: 2px solid var(--ink); min-width: 480px; font-weight: 600; }
+.ctl-foot .n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+.grand { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(5.2rem, auto)); gap: 4px 14px; padding: 12px 14px; margin-top: 14px; border-top: 3px double var(--ink); font-weight: 600; }
+.grand .n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.hide-sm { }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <div>
+      <h1>Expense Ledger</h1>
+      <div class="sub">Amounts in AED. Each entry posts to a control account and a party.</div>
+    </div>
+    <div class="month-pick">
+      <label for="month" class="colh" style="text-align:left">Month</label>
+      <select id="month"></select>
+    </div>
+  </header>
+
+  <div class="figures">
+    <div class="fig"><div class="lab">Spent this month</div><div class="val"><small>AED</small><span id="f-month">0.00</span></div></div>
+    <div class="fig open"><div class="lab">Open balance, all time</div><div class="val"><small>AED</small><span id="f-open">0.00</span></div></div>
+    <div class="fig"><div class="lab">Entries this month</div><div class="val" id="f-count">0</div></div>
+  </div>
+
+  <div class="status" id="status" role="status"></div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-expenses" aria-selected="true" data-tab="expenses">Expenses</button>
+    <button class="tab" role="tab" id="tab-subledger" aria-selected="false" data-tab="subledger">Subledger</button>
+  </div>
+
+  <section id="view-expenses" class="wrap" style="gap:20px">
+    <form class="panel" id="form" autocomplete="off">
+      <h2>New entry</h2>
+      <div class="form">
+        <div class="field"><label for="f-date">Date</label><input type="date" id="f-date" required></div>
+        <div class="field"><label for="f-acct">Control account</label><select id="f-acct"></select></div>
+        <div class="field"><label for="f-party">Party</label><input type="text" id="f-party" list="parties" placeholder="e.g. AEWA" maxlength="60" required></div>
+        <datalist id="parties"></datalist>
+        <div class="field"><label for="f-ref">Reference</label><input type="text" id="f-ref" placeholder="Invoice or receipt no." maxlength="40"></div>
+        <div class="field"><label for="f-amt">Amount (AED)</label><input class="amt" type="number" id="f-amt" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required></div>
+        <div class="field check"><input type="checkbox" id="f-paid" checked><label for="f-paid">Paid</label></div>
+        <button class="btn" type="submit">Post entry</button>
+        <div class="err" id="err"></div>
+      </div>
+    </form>
+
+    <div class="grid2">
+      <div class="panel">
+        <h2>By control account</h2>
+        <div id="cats"></div>
+      </div>
+      <div class="panel">
+        <h2>Last six months</h2>
+        <div id="trend"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Entries</h2>
+      <div class="rows" id="rows"></div>
+    </div>
+  </section>
+
+  <section id="view-subledger" hidden>
+    <div class="tools">
+      <div style="display:flex;gap:8px;align-items:center">
+        <label for="scope" class="colh" style="text-align:left">Show</label>
+        <select id="scope">
+          <option value="month">Selected month</option>
+          <option value="all">All time</option>
+        </select>
+      </div>
+      <div class="recon" id="recon"></div>
+    </div>
+    <div id="sub" style="margin-top:14px"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var ACCTS = [
+    { code: "5010", name: "Rent" },
+    { code: "5020", name: "Groceries" },
+    { code: "5030", name: "Transport and Salik" },
+    { code: "5040", name: "Utilities" },
+    { code: "5050", name: "Phone and internet" },
+    { code: "5060", name: "Dining" },
+    { code: "5070", name: "Remittances" },
+    { code: "5090", name: "Other" }
+  ];
+  var ACCT = {}; ACCTS.forEach(function (a) { ACCT[a.code] = a; });
+  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  var entries = [];
+  var month = "";
+  var scope = "month";
+  var tab = "expenses";
+  var col = null;          // db collection, or null in local mode
+  var local = false;
+  var armedDelete = null;
+  var KEY = "expense-ledger-v1";
+  var openParties = {};    // keeps expanded parties open across re-renders
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function fmt(f) { return (f / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function todayStr() { var d = new Date(); var m = String(d.getMonth() + 1).padStart(2, "0"); var dd = String(d.getDate()).padStart(2, "0"); return d.getFullYear() + "-" + m + "-" + dd; }
+  function mKey(dateStr) { return dateStr.slice(0, 7); }
+  function mLabel(k) { var p = k.split("-"); return MONTHS[+p[1] - 1] + " " + p[0]; }
+  function shortDate(s) { var p = s.split("-"); return p[2] + " " + MONTHS[+p[1] - 1]; }
+  function uid() { return "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function setStatus(msg, warn) { var s = $("status"); s.textContent = msg || ""; s.className = "status" + (warn ? " warn" : ""); }
+  function isPaid(e) { return e.paid === true; }
+
+  /* ---------- derived data ---------- */
+  function monthEntries() { return entries.filter(function (e) { return mKey(e.date) === month; }); }
+  function sum(list) { return list.reduce(function (t, e) { return t + e.fils; }, 0); }
+
+  function monthList() {
+    var set = {}; set[todayStr().slice(0, 7)] = 1; set[month] = 1;
+    entries.forEach(function (e) { set[mKey(e.date)] = 1; });
+    return Object.keys(set).sort().reverse();
+  }
+
+  /* ---------- rendering ---------- */
+  function renderMonthSelect() {
+    var sel = $("month"); var keys = monthList();
+    sel.innerHTML = keys.map(function (k) { return '<option value="' + k + '"' + (k === month ? " selected" : "") + ">" + mLabel(k) + "</option>"; }).join("");
+  }
+
+  function renderFigures() {
+    var me = monthEntries();
+    $("f-month").textContent = fmt(sum(me));
+    $("f-count").textContent = me.length;
+    var open = sum(entries.filter(function (e) { return !isPaid(e); }));
+    $("f-open").textContent = fmt(open);
+  }
+
+  function renderCats() {
+    var me = monthEntries(); var by = {};
+    me.forEach(function (e) { by[e.acct] = (by[e.acct] || 0) + e.fils; });
+    var keys = Object.keys(by).sort(function (a, b) { return by[b] - by[a]; });
+    if (!keys.length) { $("cats").innerHTML = '<div class="recon">No entries posted in ' + mLabel(month) + ".</div>"; return; }
+    var max = by[keys[0]];
+    $("cats").innerHTML = keys.map(function (k) {
+      var a = ACCT[k] || { name: k };
+      return '<div class="cat"><span class="name">' + esc(a.name) + '</span><span class="bar"><i style="width:' + Math.max(2, Math.round(by[k] / max * 100)) + '%"></i></span><span class="amt">' + fmt(by[k]) + "</span></div>";
+    }).join("");
+  }
+
+  function renderTrend() {
+    var p = month.split("-"); var y = +p[0], m = +p[1] - 1; var pts = [];
+    for (var i = 5; i >= 0; i--) {
+      var d = new Date(y, m - i, 1);
+      var k = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+      pts.push({ k: k, label: MONTHS[d.getMonth()], v: sum(entries.filter(function (e) { return mKey(e.date) === k; })) });
+    }
+    var max = Math.max.apply(null, pts.map(function (x) { return x.v; }).concat([1]));
+    var W = 360, H = 150, top = 18, base = 126, bw = 36, gap = (W - 6 * bw) / 7, svg = "";
+    svg += '<line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '"/>';
+    pts.forEach(function (pt, i) {
+      var x = gap + i * (bw + gap), h = pt.v ? Math.max(2, (pt.v / max) * (base - top)) : 0, now = pt.k === month;
+      svg += '<rect class="b' + (now ? " now" : "") + '" x="' + x.toFixed(1) + '" y="' + (base - h).toFixed(1) + '" width="' + bw + '" height="' + h.toFixed(1) + '" rx="2"/>';
+      if (pt.v) svg += '<text class="' + (now ? "now" : "") + '" x="' + (x + bw / 2).toFixed(1) + '" y="' + (base - h - 5).toFixed(1) + '" text-anchor="middle">' + Math.round(pt.v / 100).toLocaleString("en-US") + "</text>";
+      svg += '<text class="' + (now ? "now" : "") + '" x="' + (x + bw / 2).toFixed(1) + '" y="142" text-anchor="middle">' + pt.label + "</text>";
+    });
+    $("trend").innerHTML = '<svg class="trend" viewBox="0 0 ' + W + " " + H + '" width="100%" role="img" aria-label="Monthly spending, last six months, in AED">' + svg + "</svg>";
+  }
+
+  function renderRows() {
+    var me = monthEntries().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+    var box = $("rows");
+    if (!entries.length) {
+      box.innerHTML = '<div class="empty"><b>Nothing posted yet</b><span>Post your first entry above, or load a few example entries to see how the ledger and subledger fit together.</span><button class="btn ghost" type="button" id="seed">Load example entries</button></div>';
+      $("seed").onclick = seedExamples;
+      return;
+    }
+    if (!me.length) { box.innerHTML = '<div class="recon" style="padding:12px 0">No entries in ' + mLabel(month) + ".</div>"; return; }
+    var hasEx = entries.some(function (e) { return e.ex; });
+    box.innerHTML = me.map(function (e) {
+      var a = ACCT[e.acct] || { name: e.acct };
+      var armed = armedDelete === e.id;
+      return '<div class="row"><span class="d">' + shortDate(e.date) + '</span><div class="who"><b>' + esc(e.party) + (e.ex ? '<span class="tag-ex" style="display:inline">example</span>' : "") + "</b><span>" + esc(a.name) + (e.ref ? " · " + esc(e.ref) : "") + '</span></div><div class="right"><span class="a">' + fmt(e.fils) + '</span><span class="acts"><button type="button" class="pill ' + (isPaid(e) ? "paid" : "open") + '" data-paid="' + e.id + '" aria-label="Mark ' + (isPaid(e) ? "open" : "paid") + '">' + (isPaid(e) ? "Paid" : "Open") + '</button><button type="button" class="del' + (armed ? " sure" : "") + '" data-del="' + e.id + '">' + (armed ? "Confirm delete" : "Delete") + "</button></span></div></div>";
+    }).join("") + (hasEx ? '<div style="padding-top:12px"><button class="btn ghost small" type="button" id="clearex">Remove example entries</button></div>' : "");
+    var ce = $("clearex"); if (ce) ce.onclick = clearExamples;
+  }
+
+  function renderParties() {
+    var seen = {}; entries.forEach(function (e) { seen[e.party] = 1; });
+    $("parties").innerHTML = Object.keys(seen).sort().map(function (p) { return '<option value="' + esc(p) + '">'; }).join("");
+  }
+
+  function renderSub() {
+    var src = scope === "month" ? monthEntries() : entries.slice();
+    var box = $("sub");
+    if (!src.length) {
+      box.innerHTML = '<div class="panel"><div class="empty"><b>No postings in this view</b><span>' + (scope === "month" ? "Switch to All time, or pick another month." : "Post an entry on the Expenses tab and it appears here under its control account and party.") + "</span></div></div>";
+      $("recon").textContent = ""; return;
+    }
+    var groups = {};
+    src.forEach(function (e) {
+      var g = groups[e.acct] || (groups[e.acct] = { parties: {}, billed: 0, paid: 0 });
+      var p = g.parties[e.party] || (g.parties[e.party] = { list: [], billed: 0, paid: 0 });
+      p.list.push(e); p.billed += e.fils; g.billed += e.fils;
+      if (isPaid(e)) { p.paid += e.fils; g.paid += e.fils; }
+    });
+    var codes = Object.keys(groups).sort();
+    var gB = 0, gP = 0, subTotal = 0;
+    var html = codes.map(function (c) {
+      var g = groups[c], a = ACCT[c] || { name: c };
+      gB += g.billed; gP += g.paid;
+      var names = Object.keys(g.parties).sort(function (x, y) { return (g.parties[y].billed - g.parties[y].paid) - (g.parties[x].billed - g.parties[x].paid) || x.localeCompare(y); });
+      var pSum = 0;
+      var body = names.map(function (n) {
+        var p = g.parties[n]; pSum += p.billed; var o = p.billed - p.paid;
+        var key = c + "|" + n;
+        var run = 0;
+        var lines = p.list.slice().sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : 0; }).map(function (e) {
+          if (!isPaid(e)) run += e.fils;
+          return '<div class="er"><span class="d">' + shortDate(e.date) + "</span><span>" + (e.ref ? esc(e.ref) : "No reference") + ' <span class="st">· ' + (isPaid(e) ? "paid" : "open") + '</span></span><span class="a">' + fmt(e.fils) + '</span><span class="rb' + (run ? "" : " z") + '">' + fmt(run) + "</span></div>";
+        }).join("");
+        return '<details class="party" data-key="' + esc(key) + '"' + (openParties[key] ? " open" : "") + '><summary class="party-line"><span class="nm">' + esc(n) + '</span><span class="n">' + fmt(p.billed) + '</span><span class="n">' + fmt(p.paid) + '</span><span class="n ' + (o ? "o" : "z") + '">' + fmt(o) + '</span></summary><div class="entries"><div class="er" style="border-top:0"><span></span><span class="colh" style="text-align:left">Entry</span><span class="colh">Amount</span><span class="colh">Open after</span></div>' + lines + "</div></details>";
+      }).join("");
+      subTotal += pSum;
+      var open = g.billed - g.paid;
+      return '<div class="ctl"><div class="ctl-head"><span class="t"><span class="code">' + c + "</span>" + esc(a.name) + '</span><span class="colh">Billed</span><span class="colh">Paid</span><span class="colh">Open</span><span class="t" style="font-weight:400;color:var(--muted);font-size:.8rem">Control account total</span><span class="n">' + fmt(g.billed) + '</span><span class="n">' + fmt(g.paid) + '</span><span class="n o">' + fmt(open) + '</span></div><div class="scroll">' + body + "</div></div>";
+    }).join("");
+    html += '<div class="grand"><span>All control accounts</span><span class="n">' + fmt(gB) + '</span><span class="n">' + fmt(gP) + '</span><span class="n">' + fmt(gB - gP) + "</span></div>";
+    box.innerHTML = html;
+    var ledgerTotal = sum(src);
+    var tie = ledgerTotal === subTotal && subTotal === gB;
+    $("recon").innerHTML = "Subledger " + fmt(subTotal) + " vs Expenses " + fmt(ledgerTotal) + " " + (tie ? '<span class="ok">Ties</span>' : '<span class="no">Does not tie</span>');
+    Array.prototype.forEach.call(box.querySelectorAll("details.party"), function (d) {
+      d.addEventListener("toggle", function () { openParties[d.getAttribute("data-key")] = d.open; });
+    });
+  }
+
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify(entries)); } catch (x) {} }
+  function loadSaved() { try { var a = JSON.parse(localStorage.getItem(KEY) || "[]"); if (Array.isArray(a)) entries = a.map(function (d) { return normalize(d.id || uid(), d); }).filter(function (e) { return e.fils > 0; }); } catch (x) { entries = []; } }
+  function render() {
+    persist(); renderMonthSelect(); renderFigures(); renderCats(); renderTrend(); renderRows(); renderParties(); renderSub();
+  }
+
+  /* ---------- data ---------- */
+  function normalize(id, d) {
+    return { id: id, date: String(d.date || todayStr()), acct: String(d.acct || "5090"), party: String(d.party || "Unassigned"), ref: String(d.ref || ""), fils: Math.round(+d.fils || 0), paid: d.paid === true, ex: d.ex === true };
+  }
+  function save(e) {
+    var body = { date: e.date, acct: e.acct, party: e.party, ref: e.ref, fils: e.fils, paid: e.paid, ex: e.ex };
+    if (col) return col.doc(e.id).set(body);
+    entries.push(e); render(); return Promise.resolve();
+  }
+  function fail(err) { setStatus("That change was not saved" + (err && err.message ? " (" + err.message + ")" : "") + ". Try again.", true); }
+
+  function seedExamples() {
+    var t = new Date(); var y = t.getFullYear(), m = t.getMonth();
+    function d(off, day) { var x = new Date(y, m - off, day); return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0"); }
+    var rows = [
+      [d(0, 1), "5010", "Landlord, Al Nuaimiya", "Rent Q4 chq 1", 650000, true],
+      [d(0, 3), "5040", "AEWA", "Oct bill", 38250, false],
+      [d(0, 5), "5050", "du", "Home + mobile", 41500, true],
+      [d(0, 8), "5020", "Carrefour", "", 27640, true],
+      [d(0, 12), "5030", "Salik", "Top-up", 15000, true],
+      [d(0, 18), "5020", "Carrefour", "", 19875, true],
+      [d(0, 22), "5060", "Cafe receipts", "", 8400, true],
+      [d(1, 1), "5010", "Landlord, Al Nuaimiya", "Rent Q3 chq 3", 650000, true],
+      [d(1, 4), "5040", "AEWA", "Sep bill", 41200, true],
+      [d(1, 9), "5050", "du", "Home + mobile", 41500, true],
+      [d(1, 15), "5070", "Exchange house", "Remit Sep", 120000, true],
+      [d(2, 6), "5040", "AEWA", "Aug bill", 46800, true],
+      [d(2, 14), "5030", "Salik", "Top-up", 15000, true]
+    ];
+    var chain = Promise.resolve();
+    rows.forEach(function (r) {
+      chain = chain.then(function () { return save({ id: uid(), date: r[0], acct: r[1], party: r[2], ref: r[3], fils: r[4], paid: r[5], ex: true }); });
+    });
+    chain.catch(fail);
+  }
+  function clearExamples() {
+    var ex = entries.filter(function (e) { return e.ex; });
+    if (!col) { entries = entries.filter(function (e) { return !e.ex; }); render(); return; }
+    var chain = Promise.resolve();
+    ex.forEach(function (e) { chain = chain.then(function () { return col.doc(e.id).delete(); }); });
+    chain.catch(fail);
+  }
+
+  /* ---------- events ---------- */
+  function setTab(t) {
+    tab = t === "subledger" ? "subledger" : "expenses";
+    $("view-expenses").hidden = tab !== "expenses";
+    $("view-subledger").hidden = tab !== "subledger";
+    $("tab-expenses").setAttribute("aria-selected", tab === "expenses");
+    $("tab-subledger").setAttribute("aria-selected", tab === "subledger");
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (b) {
+    b.addEventListener("click", function () { var t = b.getAttribute("data-tab"); try { history.replaceState(null, "", "#" + t); } catch (x) {} setTab(t); });
+  });
+  window.addEventListener("hashchange", function () { setTab(location.hash.replace("#", "")); });
+
+  $("month").addEventListener("change", function (ev) { month = ev.target.value; render(); });
+  $("scope").addEventListener("change", function (ev) { scope = ev.target.value; renderSub(); });
+
+  $("rows").addEventListener("click", function (ev) {
+    var t = ev.target;
+    var pid = t.getAttribute && t.getAttribute("data-paid");
+    var did = t.getAttribute && t.getAttribute("data-del");
+    if (pid) {
+      var e = entries.filter(function (x) { return x.id === pid; })[0]; if (!e) return;
+      if (col) col.doc(pid).update({ paid: !e.paid }).catch(fail); else { e.paid = !e.paid; render(); }
+    } else if (did) {
+      if (armedDelete !== did) { armedDelete = did; renderRows(); setTimeout(function () { if (armedDelete === did) { armedDelete = null; renderRows(); } }, 3500); return; }
+      armedDelete = null;
+      if (col) col.doc(did).delete().catch(fail); else { entries = entries.filter(function (x) { return x.id !== did; }); render(); }
+    }
+  });
+
+  $("form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var err = $("err"); err.textContent = "";
+    var amt = parseFloat($("f-amt").value);
+    var party = $("f-party").value.trim();
+    var date = $("f-date").value;
+    if (!date) { err.textContent = "Choose the posting date."; return; }
+    if (!party) { err.textContent = "Enter the party this entry posts to."; return; }
+    if (!(amt > 0)) { err.textContent = "Enter an amount above zero."; return; }
+    var e = { id: uid(), date: date, acct: $("f-acct").value, party: party, ref: $("f-ref").value.trim(), fils: Math.round(amt * 100), paid: $("f-paid").checked, ex: false };
+    month = mKey(date);
+    save(e).then(function () { $("f-amt").value = ""; $("f-ref").value = ""; $("f-party").focus(); setStatus(""); }).catch(fail);
+    if (!col) { $("f-amt").value = ""; $("f-ref").value = ""; }
+  });
+
+  /* ---------- boot ---------- */
+  $("f-acct").innerHTML = ACCTS.map(function (a) { return '<option value="' + a.code + '">' + a.code + "  " + esc(a.name) + "</option>"; }).join("");
+  $("f-date").value = todayStr();
+  month = todayStr().slice(0, 7);
+  setTab(location.hash.replace("#", ""));
+
+  local = true;
+  loadSaved();
+  render();
+})();
+</script>
+</body>
+</html>
